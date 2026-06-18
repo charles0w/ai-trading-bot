@@ -64,5 +64,27 @@ scripts/         check_alpaca.py · paper_smoke.py · show_features.py
 4. **Daily automation** + a ceos-enterprise fleet card reporting hit rate / expectancy / calibration.
 5. **Decide:** is v1 (long-only) the strategy or the on-ramp to the Level-3 short-premium edge (account is already approved Level 3).
 
+## Update — trained model + automation + sync (later same session)
+
+**Live validation done** (on the Mac): Alpaca ACTIVE/Level 3, Finnhub real SUE (NVDA 2.92), yfinance prices, and the **Claude analyst all work**. `run_once` correctly returned `no_trade` — mid-June is between earnings waves, so few names are in the 1–5d PEAD window (it'll wake up as Q2 earnings ramp mid/late July). `scan.py` found ADBE (reported 6d ago, −10.3%) just outside the window.
+
+**Trained model (replaces heuristic):**
+- `atb/signal/logistic.py` — `LogisticSignal` (same Signal interface, learned weights, JSON save/load).
+- `atb/train/` — `dataset.py` (labels historical post-earnings events point-in-time) + `trainer.py` (pure-Python GD logistic). `scripts/train_model.py` builds the dataset + saves `data/model.json`.
+- `run_once.py` auto-loads `data/model.json` if present, else falls back to the heuristic.
+- Run: `python scripts/train_model.py` (needs Finnhub + network). In-sample accuracy is optimistic — the paper trial graded net of costs is the real test.
+
+**Daily automation (Mac launchd):** `scripts/run_daily.sh` (grade → scan → run_once) + `deploy/com.charles.atb-daily.plist` (weekdays 07:30 PT) + `deploy/README.md`. Dry run until `ATB_EXECUTE=1`. Same FDA/TCC caveat as eod-recap.
+
+**Tests: 83 passing** (added trained-model + dataset/trainer suites).
+
+**Push (code repo):** committed locally (92 files, no secrets — `.gitignore` covers `.env`/`data`/`logs`), remote set to `git@github.com:charles0w/ai-trading-bot.git`. The sandbox can't push (no SSH key). **On the Mac:**
+```
+cd ~/Desktop/ai-trading-bot && git push -u origin main --force
+```
+(`--force` because the GitHub repo still holds the old recap-markdown snapshot; the new codebase supersedes it.) The **vault** auto-syncs via obsidian-git.
+
+**Evals: in place + tested, not yet exercised.** The eval system (`atb/eval/`: predictions log, grading, reliability/calibration, cross-family judge) is built and unit-tested, AND there's a second, older eval layer (`ceo_report.py`, the live dashboard) from the 6/5 build. Today's `grade.py` correctly returned an empty scorecard — **no predictions to grade yet** because the brain has (correctly) placed no trades. Evals start producing real numbers once the brain logs predictions (dry-run `run_once` already logs them when a setup qualifies; grading matures `horizon_days` later).
+
 ## See also
 - [[pivot-2026-06-16]] · [[strategy-research-2026-06-16]] · [[phase0-execution-reuse-2026-06-16]] · [[alpaca-paper-setup]]
