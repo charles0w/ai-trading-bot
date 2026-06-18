@@ -55,14 +55,17 @@ def make_rows_for_symbol(bars, earnings_days, *, horizon_days: int = 5,
 
 
 def build_dataset(provider, symbols, *, years: int = 3, horizon_days: int = 5,
-                  entry_offset_days: int = 2, verbose: bool = False):
+                  entry_offset_days: int = 2, verbose: bool = False, pause: float = 0.0):
     """Live dataset build (needs network). For each symbol: pull ~`years` of bars
     + earnings history (announce date + actual/estimate), compute per-event SUE
     from the expanding surprise series, and emit labeled rows. `provider` must
     expose daily_bars + earnings_history (FinnhubProvider delegates the latter to
     yfinance, which has reliable announce dates and no per-symbol rate limit)."""
+    import time
     rows = []
     for sym in symbols:
+        if pause:
+            time.sleep(pause)
         try:
             bars = provider.daily_bars(sym, lookback_days=int(years * 365) + 90)
             events = provider.earnings_history(sym, years=years)   # sorted ascending

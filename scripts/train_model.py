@@ -52,7 +52,7 @@ def main() -> None:
 
     print(f"Building dataset: {len(syms)} symbols x {args.years}y (earnings via yfinance) ...")
     rows = build_dataset(provider, syms, years=args.years,
-                         horizon_days=args.horizon_days, verbose=True)
+                         horizon_days=args.horizon_days, verbose=True, pause=0.5)
     print(f"\nLabeled rows: {len(rows)}")
     if not rows:
         print("No rows — check network/keys.")

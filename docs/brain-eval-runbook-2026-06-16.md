@@ -43,7 +43,7 @@ scripts/         check_alpaca.py · paper_smoke.py · show_features.py
 2. **Add two free API keys to `.env`** (already has placeholders):
    - `FINNHUB_API_KEY` — finnhub.io (earnings + SUE)
    - `ANTHROPIC_API_KEY` — console.anthropic.com (LLM analyst)
-3. **Install live deps:** `pip install alpaca-py yfinance anthropic python-dotenv`
+3. **Install live deps:** `pip install alpaca-py yfinance lxml anthropic python-dotenv` (**lxml is required** — yfinance's `get_earnings_dates` silently returns nothing without it, which starves the training set).
 4. **Eyeball the brain on a name:** `python scripts/show_features.py NVDA` — see features + whether the naive baseline fires.
 5. **Run the brain (dry run):** `python scripts/run_once.py` — prints a decision per symbol, logs predictions to `data/predictions.jsonl`, places nothing.
 6. **First paper trade (market hours, 6:30am–1pm PT):** `python scripts/paper_smoke.py --underlying SPY --execute`, or `python scripts/run_once.py --execute` once you trust the dry-run output.
