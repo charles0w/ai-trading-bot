@@ -88,6 +88,24 @@ def _run_record(note: str) -> dict:
     return {"ok": errors == 0, "summary": summary, "detail": block or note}
 
 
+def _upcoming(days: int = 7) -> list[dict]:
+    """Liquid names reporting earnings in the next `days` days (forward-looking)."""
+    try:
+        from datetime import date, timedelta
+        from atb.data.finnhub_provider import FinnhubProvider
+        from atb.data.yfinance_provider import YFinanceProvider
+        from atb.universe import LIQUID
+        p = FinnhubProvider(price_provider=YFinanceProvider())
+        cal = p.earnings_calendar(date.today(), date.today() + timedelta(days=days))
+        up = [{"symbol": it["symbol"], "date": it.get("date"), "hour": it.get("hour"),
+               "eps_estimate": it.get("epsEstimate")}
+              for it in cal if it.get("symbol") in LIQUID and it.get("date")]
+        return sorted(up, key=lambda x: x["date"])[:40]
+    except Exception as e:
+        print("upcoming fetch failed:", type(e).__name__, str(e)[:80])
+        return []
+
+
 def _positions() -> list[dict]:
     if not os.path.exists(DB):
         return []
@@ -146,8 +164,8 @@ def main() -> None:
     _post("/api/report", {"agentId": "finance", "status": status})
     _post("/api/finance", {
         "model": model, "scorecard": sc, "predictions": preds_payload,
-        "positions": positions, "candidates": [], "note": note,
-        "run": _run_record(note),
+        "positions": positions, "candidates": [], "upcoming": _upcoming(),
+        "note": note, "run": _run_record(note),
     })
 
 

@@ -27,27 +27,35 @@ from atb.data.finnhub_provider import FinnhubProvider
 from atb.data.yfinance_provider import YFinanceProvider
 from atb.features import compute_features
 
-# Liquid, tight-spread optionable names (the only universe where the academic
-# PEAD edge survives option costs — see strategy-research-2026-06-16).
-LIQUID = {
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "AMD",
-    "NFLX", "CRM", "ORCL", "ADBE", "INTC", "QCOM", "MU", "TXN", "CSCO", "IBM",
-    "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "C",
-    "UNH", "JNJ", "LLY", "PFE", "MRK", "ABBV", "TMO",
-    "WMT", "COST", "HD", "LOW", "TGT", "NKE", "MCD", "SBUX", "DIS",
-    "XOM", "CVX", "COP", "BA", "CAT", "GE", "HON", "UPS",
-    "PG", "KO", "PEP", "T", "VZ", "CMCSA", "PYPL", "UBER", "SHOP", "PLTR",
-    "SMCI", "MRVL", "PANW", "SNOW", "COIN", "ABNB", "F", "GM",
-}
+from atb.universe import LIQUID
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", type=int, default=6, help="lookback for recent reporters")
+    ap.add_argument("--days", type=int, default=7, help="window size (days)")
+    ap.add_argument("--upcoming", action="store_true",
+                    help="list liquid names reporting in the NEXT --days days")
     args = ap.parse_args()
 
     today = date.today()
     provider = FinnhubProvider(price_provider=YFinanceProvider())
+
+    if args.upcoming:
+        cal = provider.earnings_calendar(today, today + timedelta(days=args.days))
+        up = sorted([it for it in cal if it.get("symbol") in LIQUID and it.get("date")],
+                    key=lambda it: it["date"])
+        if not up:
+            print(f"No liquid names reporting in the next {args.days} days.")
+            return
+        print(f"Liquid names reporting in the next {args.days} days: {len(up)}\n")
+        print(f"{'SYM':6} {'DATE':12} {'WHEN':5} EPS est")
+        for it in up:
+            when = {"bmo": "BMO", "amc": "AMC", "dmh": "DMH"}.get(it.get("hour", ""), it.get("hour") or "—")
+            est = it.get("epsEstimate")
+            est = f"{est:.2f}" if isinstance(est, (int, float)) else "—"
+            print(f"{it['symbol']:6} {it['date']:12} {when:5} {est}")
+        print("\nThese become tradeable 1-2 days AFTER they report (post-IV-crush window).")
+        return
 
     cal = provider.earnings_calendar(today - timedelta(days=args.days), today)
     reported = sorted({it["symbol"] for it in cal

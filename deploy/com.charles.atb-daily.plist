@@ -29,10 +29,9 @@
     <dict>
         <key>HOME</key>
         <string>/Users/charlesow</string>
-        <!-- Set ATB_EXECUTE to 1 here to place paper orders unattended. Leave 0
-             (dry run) until you trust a few days of dry output. -->
+        <!-- ATB_EXECUTE=1 → places paper orders unattended when a setup qualifies. -->
         <key>ATB_EXECUTE</key>
-        <string>0</string>
+        <string>1</string>
     </dict>
 
     <key>StandardOutPath</key>
