@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 import urllib.error
@@ -55,6 +56,36 @@ def _post(path: str, payload: dict) -> None:
         print(path, "HTTP", e.code, e.read()[:160])
     except Exception as e:
         print(path, "ERR", type(e).__name__, str(e)[:120])
+
+
+def _last_run_block() -> str:
+    """The most recent run's section of logs/daily.log, de-noised — used as the
+    activity-log detail for this fire."""
+    p = "logs/daily.log"
+    if not os.path.exists(p):
+        return ""
+    txt = open(p, errors="replace").read()
+    parts = txt.split("=====")
+    block = ("=====" + parts[-1]) if len(parts) >= 2 else txt[-4000:]
+    keep = [ln for ln in block.splitlines()
+            if "NotOpenSSLWarning" not in ln and "warnings.warn" not in ln
+            and "urllib3/__init__" not in ln]
+    return "\n".join(keep).strip()[:7000]
+
+
+def _run_record(note: str) -> dict:
+    block = _last_run_block()
+    # one decision per run_once line: "AAPL   no_trade   signal_no_trade"
+    decisions = re.findall(r"(?m)^\s*\S+\s+(no_trade|placed|rejected|dry_run|error)\b", block)
+    no_trade = decisions.count("no_trade")
+    placed = decisions.count("placed")
+    errors = decisions.count("error") + len(re.findall(r"Traceback|HTTP 5\d\d", block))
+    g = re.search(r"Newly graded:\s*(\d+)", block)
+    graded = g.group(1) if g else "0"
+    summary = f"{no_trade} no-trade · {placed} placed · {graded} graded today"
+    if errors:
+        summary += f" · {errors} errors"
+    return {"ok": errors == 0, "summary": summary, "detail": block or note}
 
 
 def _positions() -> list[dict]:
@@ -116,6 +147,7 @@ def main() -> None:
     _post("/api/finance", {
         "model": model, "scorecard": sc, "predictions": preds_payload,
         "positions": positions, "candidates": [], "note": note,
+        "run": _run_record(note),
     })
 
 
