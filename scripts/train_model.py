@@ -80,6 +80,14 @@ def main() -> None:
     # Ship a model trained on ALL rows (standard once OOS is measured)
     model = train_logistic(rows)
     model.save(args.out)
+    # Persist eval metadata into the model file so the dashboard can show it.
+    import json as _json
+    from datetime import date as _date
+    _md = _json.load(open(args.out))
+    _md["held_out_acc"] = round(oos, 4) if oos is not None else None
+    _md["n_rows"] = len(rows)
+    _md["trained_at"] = _date.today().isoformat()
+    _json.dump(_md, open(args.out, "w"), indent=2)
     print(f"Trained on all {len(rows)} rows + saved -> {args.out}")
     print(f"In-sample accuracy: {accuracy(model, rows):.3f}  (optimistic; ignore vs held-out)")
     print("Weights:")
