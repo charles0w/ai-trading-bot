@@ -63,6 +63,34 @@ def test_recent_earnings_none_when_no_calendar():
     assert p.recent_earnings("NVDA", asof=date(2026, 6, 16)) is None
 
 
+def _fetch_factory(earnings_rows, calendar):
+    def f(path, params):
+        if path == "/stock/earnings":
+            return earnings_rows
+        if path == "/calendar/earnings":
+            return {"earningsCalendar": calendar}
+        return None
+    return f
+
+
+def test_sue_none_when_surprise_stdev_is_zero():
+    # identical past surprises -> stdev 0 -> SUE must be None, not inf/huge
+    rows = [{"actual": 1.0, "estimate": 0.9}] * 3
+    cal = [{"date": "2026-06-10", "epsActual": 1.3, "epsEstimate": 1.0}]
+    p = FinnhubProvider(api_key="t", fetch_json=_fetch_factory(rows, cal))
+    ev = p.recent_earnings("NVDA", asof=date(2026, 6, 16))
+    assert ev.sue is None
+
+
+def test_sue_clipped_to_range():
+    # tiny (but >floor) stdev + big surprise -> raw SUE ~35 -> clipped to 10
+    rows = [{"actual": 1.10, "estimate": 1.00}, {"actual": 1.12, "estimate": 1.00}]
+    cal = [{"date": "2026-06-10", "epsActual": 1.5, "epsEstimate": 1.0}]
+    p = FinnhubProvider(api_key="t", fetch_json=_fetch_factory(rows, cal))
+    ev = p.recent_earnings("NVDA", asof=date(2026, 6, 16))
+    assert ev.sue == 10.0
+
+
 def test_delegates_prices_to_price_provider():
     p = _provider(FakePrice())
     assert p.latest_price("NVDA") == 100.0

@@ -78,7 +78,9 @@ def build_dataset(provider, symbols, *, years: int = 3, horizon_days: int = 5,
             if ev.eps_actual is not None and ev.eps_estimate is not None:
                 if len(surprises) >= 2:
                     sd = statistics.stdev(surprises)
-                    sue_by_day[ev.day] = (ev.eps_actual - ev.eps_estimate) / sd if sd else None
+                    if sd and sd > 1e-3:   # floor: near-zero stdev makes SUE explode
+                        raw = (ev.eps_actual - ev.eps_estimate) / sd
+                        sue_by_day[ev.day] = max(-10.0, min(10.0, raw))   # clip to a sane range
                 surprises.append(ev.eps_actual - ev.eps_estimate)
         sym_rows = make_rows_for_symbol(
             bars, [ev.day for ev in events], horizon_days=horizon_days,
