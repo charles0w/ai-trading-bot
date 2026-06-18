@@ -63,10 +63,25 @@ def main() -> None:
               f"run_once will keep using the heuristic until a real model is saved.")
         return
 
+    # Honest check: hold out 20% (seeded shuffle) and report OUT-OF-SAMPLE accuracy
+    import random
+    shuffled = rows[:]
+    random.Random(42).shuffle(shuffled)
+    cut = int(len(shuffled) * 0.8)
+    train_rows, test_rows = shuffled[:cut], shuffled[cut:]
+    holdout_model = train_logistic(train_rows)
+    oos = accuracy(holdout_model, test_rows)
+    print(f"Held-out accuracy: {oos:.3f} on {len(test_rows)} rows "
+          f"(0.50 = no edge; THIS is the number that matters, not in-sample)")
+    if oos is not None and oos < 0.53:
+        print("  ^ at/near coin-flip — no real directional edge yet. Expected per the "
+              "research; the paper trial net of costs is the real gate.")
+
+    # Ship a model trained on ALL rows (standard once OOS is measured)
     model = train_logistic(rows)
     model.save(args.out)
-    print(f"Trained + saved -> {args.out}")
-    print(f"In-sample accuracy: {accuracy(model, rows):.3f}  (in-sample is optimistic)")
+    print(f"Trained on all {len(rows)} rows + saved -> {args.out}")
+    print(f"In-sample accuracy: {accuracy(model, rows):.3f}  (optimistic; ignore vs held-out)")
     print("Weights:")
     for f, w in model.weights.items():
         print(f"  {f:22} {w:+.4f}")
