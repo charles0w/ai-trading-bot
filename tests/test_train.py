@@ -66,6 +66,25 @@ def test_trained_model_scores_direction_in_window():
     assert model.score(fv_out).direction == "flat"
 
 
+def test_build_dataset_uses_earnings_history():
+    from atb.data.provider import EarningsEvent
+    from atb.train.dataset import build_dataset
+
+    bars = _bars(500, date(2024, 6, 1), lambda i: 100 * (1.001 ** i))
+
+    class FakeProv:
+        def daily_bars(self, sym, *, lookback_days=500):
+            return bars
+        def earnings_history(self, sym, *, years=3):
+            # three past events spaced ~120 days, all with room for a forward window
+            return [EarningsEvent(sym, bars[i].day, 1.2, 1.0) for i in (150, 270, 390)]
+
+    rows = build_dataset(FakeProv(), ["NVDA"], years=3)
+    assert len(rows) == 3
+    assert all(r[1] in (0, 1) for r in rows)
+    assert all("mom_12_1" in r[0] for r in rows)
+
+
 def test_logistic_save_load_roundtrip(tmp_path):
     m = LogisticSignal(weights={"sue": 1.5, "post_earnings_return": 2.0, "mom_12_1": 0.3,
                                 "mom_6_1": 0.1, "realized_vol_20d": -0.2}, bias=0.1)

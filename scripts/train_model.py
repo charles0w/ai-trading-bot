@@ -39,20 +39,28 @@ DEFAULT_UNIVERSE = [
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols", default=",".join(DEFAULT_UNIVERSE))
-    ap.add_argument("--years", type=int, default=2)
+    ap.add_argument("--years", type=int, default=3)
     ap.add_argument("--horizon-days", type=int, default=5)
     ap.add_argument("--out", default="data/model.json")
+    ap.add_argument("--min-rows", type=int, default=100,
+                    help="refuse to save below this many rows (avoids overfit)")
+    ap.add_argument("--force", action="store_true", help="save even below --min-rows")
     args = ap.parse_args()
 
     syms = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     provider = FinnhubProvider(price_provider=YFinanceProvider())
 
-    print(f"Building dataset: {len(syms)} symbols x {args.years}y ...")
-    rows = build_dataset(provider, syms, years=args.years, horizon_days=args.horizon_days)
-    print(f"Labeled rows: {len(rows)}")
-    if len(rows) < 50:
-        print("WARNING: very few rows — model will be weak. Widen universe/years.")
+    print(f"Building dataset: {len(syms)} symbols x {args.years}y (earnings via yfinance) ...")
+    rows = build_dataset(provider, syms, years=args.years,
+                         horizon_days=args.horizon_days, verbose=True)
+    print(f"\nLabeled rows: {len(rows)}")
     if not rows:
+        print("No rows — check network/keys.")
+        return
+    if len(rows) < args.min_rows and not args.force:
+        print(f"REFUSING to save: only {len(rows)} rows (< --min-rows={args.min_rows}). "
+              f"A model this small overfits. Widen --symbols/--years, or --force to override.\n"
+              f"run_once will keep using the heuristic until a real model is saved.")
         return
 
     model = train_logistic(rows)

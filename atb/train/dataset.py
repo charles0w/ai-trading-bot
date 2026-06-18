@@ -54,31 +54,33 @@ def make_rows_for_symbol(bars, earnings_days, *, horizon_days: int = 5,
     return rows
 
 
-def build_dataset(provider, symbols, *, years: int = 2, horizon_days: int = 5,
-                  entry_offset_days: int = 2):
+def build_dataset(provider, symbols, *, years: int = 3, horizon_days: int = 5,
+                  entry_offset_days: int = 2, verbose: bool = False):
     """Live dataset build (needs network). For each symbol: pull ~`years` of bars
-    + earnings history, compute per-event SUE from the surprise series, and emit
-    rows. `provider` must expose daily_bars + earnings_calendar (FinnhubProvider)."""
-    today = date.today()
+    + earnings history (announce date + actual/estimate), compute per-event SUE
+    from the expanding surprise series, and emit labeled rows. `provider` must
+    expose daily_bars + earnings_history (FinnhubProvider delegates the latter to
+    yfinance, which has reliable announce dates and no per-symbol rate limit)."""
     rows = []
     for sym in symbols:
         try:
-            bars = provider.daily_bars(sym, lookback_days=int(years * 365) + 60)
-            cal = provider.earnings_calendar(today - timedelta(days=years * 365), today, sym)
-        except Exception:
+            bars = provider.daily_bars(sym, lookback_days=int(years * 365) + 90)
+            events = provider.earnings_history(sym, years=years)   # sorted ascending
+        except Exception as e:
+            if verbose:
+                print(f"  {sym:6} skipped ({type(e).__name__}: {str(e)[:50]})")
             continue
-        events = [(date.fromisoformat(it["date"]), it) for it in cal if it.get("date")]
-        events.sort(key=lambda t: t[0])
-        # SUE = (actual-estimate) / stdev of prior surprises (expanding window)
         surprises, sue_by_day = [], {}
-        for d, it in events:
-            a, e = it.get("epsActual"), it.get("epsEstimate")
-            if a is not None and e is not None:
+        for ev in events:
+            if ev.eps_actual is not None and ev.eps_estimate is not None:
                 if len(surprises) >= 2:
                     sd = statistics.stdev(surprises)
-                    sue_by_day[d] = (a - e) / sd if sd else None
-                surprises.append(a - e)
-        rows.extend(make_rows_for_symbol(
-            bars, [d for d, _ in events], horizon_days=horizon_days,
-            entry_offset_days=entry_offset_days, sue_by_day=sue_by_day))
+                    sue_by_day[ev.day] = (ev.eps_actual - ev.eps_estimate) / sd if sd else None
+                surprises.append(ev.eps_actual - ev.eps_estimate)
+        sym_rows = make_rows_for_symbol(
+            bars, [ev.day for ev in events], horizon_days=horizon_days,
+            entry_offset_days=entry_offset_days, sue_by_day=sue_by_day)
+        if verbose:
+            print(f"  {sym:6} {len(events):2} events -> {len(sym_rows):2} rows")
+        rows.extend(sym_rows)
     return rows
