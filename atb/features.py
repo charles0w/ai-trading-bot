@@ -54,14 +54,14 @@ def momentum(closes: list[float], *, lookback: int, skip: int) -> float | None:
         return None
     recent = closes[-(skip + 1)]
     past = closes[-(lookback + skip + 1)]
-    return (recent / past - 1) if past else None
+    return (recent / past - 1) if (past > 0 and recent > 0) else None
 
 
 def realized_vol(closes: list[float], *, window: int = 20, ann: int = 252) -> float | None:
     if len(closes) < window + 1:
         return None
     rets = [math.log(closes[i] / closes[i - 1]) for i in range(len(closes) - window, len(closes))
-            if closes[i - 1] > 0]
+            if closes[i - 1] > 0 and closes[i] > 0]
     if len(rets) < 2:
         return None
     mean = sum(rets) / len(rets)
@@ -70,8 +70,9 @@ def realized_vol(closes: list[float], *, window: int = 20, ann: int = 252) -> fl
 
 
 def pct_from_high(spot: float, highs: list[float]) -> float | None:
-    hi = max(highs) if highs else None
-    return (spot / hi - 1) if hi else None
+    valid = [h for h in highs if h and h > 0]
+    hi = max(valid) if valid else None
+    return (spot / hi - 1) if (hi and spot) else None
 
 
 # ----------------------------- builder ------------------------------------

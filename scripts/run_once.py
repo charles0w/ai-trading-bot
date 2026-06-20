@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -75,6 +76,7 @@ def main() -> None:
             print(f"{sym:8} {d.decision:10} {detail}")
         except Exception as e:  # one bad symbol shouldn't kill the run
             print(f"{sym:8} {'error':10} {type(e).__name__}: {str(e)[:80]}")
+            traceback.print_exc()  # full trace to stderr/log for pinpointing
 
 
 if __name__ == "__main__":

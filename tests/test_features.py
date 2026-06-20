@@ -51,6 +51,24 @@ def test_pct_from_high():
     assert abs(pct_from_high(100, [90, 110, 100]) - (100 / 110 - 1)) < 1e-9
 
 
+# --- regression: a poisoned 0.0 close (yfinance NaN coercion) must not crash ---
+
+def test_realized_vol_skips_nonpositive_close():
+    # a 0.0 close in the window used to raise ValueError: math domain error
+    rv = realized_vol([100.0] * 29 + [0.0])
+    assert rv is not None and rv >= 0.0
+
+
+def test_momentum_none_on_nonpositive():
+    assert momentum([1.0, 0.0, 1.0, 1.0, 1.0], lookback=3, skip=0) is None  # past (idx -4) == 0
+    assert momentum([1.0, 1.0, 1.0, 1.0, 0.0], lookback=3, skip=0) is None  # recent (idx -1) == 0
+
+
+def test_pct_from_high_ignores_zeros_and_zero_spot():
+    assert abs(pct_from_high(100, [0.0, 110, 0.0]) - (100 / 110 - 1)) < 1e-9
+    assert pct_from_high(0.0, [110]) is None
+
+
 # --- builder ---
 
 def test_compute_features_uptrend_with_earnings():

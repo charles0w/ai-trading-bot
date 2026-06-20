@@ -68,7 +68,7 @@ def run_symbol(
     now_pt = now_pt or datetime.now(PT)
 
     fv = compute_features(provider, symbol, asof=asof)
-    if fv.spot is None:
+    if not fv.spot:  # None or 0.0 (e.g. provider returned only partial/NaN bars)
         return Decision(symbol, "no_trade", "no_spot", features=fv)
 
     so = signal.score(fv)
