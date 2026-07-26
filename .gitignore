@@ -11,8 +11,14 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Data (root runtime dir only — /data/ not data/, so atb/data/ source stays tracked)
-/data/
+# Data (root runtime dir only — /data/* not data/, so atb/data/ source stays
+# tracked). Exclude contents rather than the dir itself so the trained-model
+# artifact can be negated back in: git cannot re-include a file whose parent
+# DIRECTORY is excluded. model.json is versioned deliberately — one canonical
+# model in git keeps Mac and Windows runs identical; retraining is an explicit
+# commit, never an implicit per-machine divergence.
+/data/*
+!/data/model.json
 *.duckdb
 *.duckdb.wal
 *.parquet
