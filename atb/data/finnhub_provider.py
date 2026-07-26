@@ -133,10 +133,19 @@ class FinnhubProvider:
         return self.price_provider.daily_bars(symbol, lookback_days=lookback_days)
 
     def latest_price(self, symbol: str) -> float | None:
+        # Finnhub's /quote is real-time on the free tier — fresher than the
+        # price provider's daily bars (yfinance sometimes serves the newest
+        # session with a NaN close, silently going a day stale and zeroing the
+        # post-earnings drift). Quote first; delegate only as fallback.
+        try:
+            q = self._fetch("/quote", {"symbol": symbol}) or {}
+            if q.get("c"):
+                return float(q["c"])
+        except Exception:
+            pass
         if self.price_provider:
             return self.price_provider.latest_price(symbol)
-        q = self._fetch("/quote", {"symbol": symbol}) or {}
-        return float(q["c"]) if q.get("c") else None
+        return None
 
     def option_chain(self, symbol: str, *, expiry: date, option_type: str) -> list[OptionQuote]:
         if self.price_provider:

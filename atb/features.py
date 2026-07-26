@@ -98,10 +98,16 @@ def compute_features(provider: MarketDataProvider, symbol: str, *,
         fv.last_earnings_date = earn.day
         fv.days_since_earnings = (asof - earn.day).days
         fv.sue = earn.sue
-        # post-earnings drift: spot vs the close on the first trading day on/after the print
-        base = next((b.close for b in bars if b.day >= earn.day), None)
-        if base and fv.spot:
-            fv.post_earnings_return = fv.spot / base - 1
+        # post-earnings drift: spot vs the close on the first trading day on/after
+        # the print. Only meaningful with an observation BEYOND that base close —
+        # when a stale/NaN-truncated feed makes the base bar the newest bar and
+        # spot is that same close, emit None, not a fabricated 0.0 (which reads
+        # as "no drift, confirmed" to the signal and the LLM analyst).
+        base_bar = next((b for b in bars if b.day >= earn.day), None)
+        if base_bar and base_bar.close and fv.spot:
+            has_later_bar = bars[-1].day > base_bar.day
+            if has_later_bar or fv.spot != base_bar.close:
+                fv.post_earnings_return = fv.spot / base_bar.close - 1
     return fv
 
 

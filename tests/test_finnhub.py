@@ -91,7 +91,24 @@ def test_sue_clipped_to_range():
     assert ev.sue == 10.0
 
 
-def test_delegates_prices_to_price_provider():
+def test_latest_price_prefers_realtime_quote_over_price_provider():
+    # /quote is fresher than the price provider's daily bars (which can go a
+    # day stale when yfinance serves a NaN close) — quote wins when available
     p = _provider(FakePrice())
+    assert p.latest_price("NVDA") == 123.4
+    assert len(p.daily_bars("NVDA")) == 1  # bars still delegate
+
+
+def test_latest_price_falls_back_to_price_provider_when_quote_fails():
+    def broken_quote(path, params):
+        if path == "/quote":
+            raise RuntimeError("finnhub down")
+        return _fetch(path, params)
+    p = FinnhubProvider(api_key="test", price_provider=FakePrice(),
+                        fetch_json=broken_quote)
     assert p.latest_price("NVDA") == 100.0
-    assert len(p.daily_bars("NVDA")) == 1
+
+    empty_quote = lambda path, params: {} if path == "/quote" else _fetch(path, params)
+    p2 = FinnhubProvider(api_key="test", price_provider=FakePrice(),
+                         fetch_json=empty_quote)
+    assert p2.latest_price("NVDA") == 100.0

@@ -88,6 +88,38 @@ def test_compute_features_no_bars():
     assert fv.spot is None and fv.mom_12_1 is None
 
 
+# --- regression: drift must be None, not 0.0, when the feed is truncated ---
+# (2026-07-26: yfinance served the newest session with a NaN close, so bars
+# ended on the earnings day itself and spot == base close → fabricated 0.0
+# drift fed to the signal and the LLM analyst.)
+
+def test_drift_none_when_base_bar_is_newest_and_spot_equals_close():
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100 * (1.001 ** i))
+    asof = bars[-1].day + timedelta(days=2)  # weekend after a truncated feed
+    earn = EarningsEvent(symbol="INTC", day=bars[-1].day, eps_actual=1.2, eps_estimate=1.0)
+    fv = compute_features(FakeProvider(bars, earnings=earn), "INTC", asof=asof)
+    assert fv.post_earnings_return is None  # was exactly 0.0 before the fix
+
+
+def test_drift_computed_from_fresh_quote_without_later_bar():
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100 * (1.001 ** i))
+    asof = bars[-1].day + timedelta(days=1)
+    earn = EarningsEvent(symbol="INTC", day=bars[-1].day, eps_actual=1.2, eps_estimate=1.0)
+    spot = bars[-1].close * 1.03  # live quote fresher than the stale bars
+    fv = compute_features(FakeProvider(bars, earnings=earn, spot=spot), "INTC", asof=asof)
+    assert fv.post_earnings_return is not None
+    assert abs(fv.post_earnings_return - 0.03) < 1e-9
+
+
+def test_drift_true_zero_survives_when_later_bar_exists():
+    # a genuine flat close after the print is legitimate data, not an artifact
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100.0)
+    asof = bars[-1].day
+    earn = EarningsEvent(symbol="T", day=bars[-3].day, eps_actual=1.0, eps_estimate=1.0)
+    fv = compute_features(FakeProvider(bars, earnings=earn), "T", asof=asof)
+    assert fv.post_earnings_return == 0.0
+
+
 # --- baseline intent stub ---
 
 def test_baseline_long_call_in_window():
