@@ -1,0 +1,22 @@
+{
+  "weights": {
+    "sue": -0.0010459539413936675,
+    "post_earnings_return": 0.33627657241403275,
+    "mom_12_1": 0.0603907559912821,
+    "mom_6_1": 0.19325972360187593,
+    "realized_vol_20d": -0.4733622450984196
+  },
+  "bias": 0.34263008105178133,
+  "features": [
+    "sue",
+    "post_earnings_return",
+    "mom_12_1",
+    "mom_6_1",
+    "realized_vol_20d"
+  ],
+  "version": "pead-logistic-v1",
+  "entry_window": [
+    1,
+    5
+  ]
+}
