@@ -19,6 +19,7 @@ env/
 # commit, never an implicit per-machine divergence.
 /data/*
 !/data/model.json
+!/data/predictions.jsonl
 *.duckdb
 *.duckdb.wal
 *.parquet

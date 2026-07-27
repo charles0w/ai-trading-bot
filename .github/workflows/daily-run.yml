@@ -1,0 +1,100 @@
+# Daily ai-trading-bot run — serverless, no laptop required.
+#
+# Mirrors scripts/run_daily.sh (grade -> scan -> run_once -> report) on a
+# GitHub-hosted runner, then commits data/predictions.jsonl back to main so
+# the prediction log survives the ephemeral runner and every machine (Mac,
+# Windows, weekly eval) reads one canonical history via git.
+#
+# SETUP (one-time, from any machine with gh auth):
+#   1. Add the four secrets (values from your local .env — run these yourself):
+#        gh secret set ALPACA_API_KEY
+#        gh secret set ALPACA_SECRET_KEY
+#        gh secret set FINNHUB_API_KEY
+#        gh secret set ANTHROPIC_API_KEY
+#      (each prompts for the value; paste from .env)
+#   2. Test manually: Actions tab -> "daily-run" -> Run workflow.
+#   3. When a few dry runs look right, uncomment the `schedule:` block below.
+#   4. To place paper orders: repo Settings -> Variables -> ATB_EXECUTE = 1
+#      (variable, not secret — mirrors the plist's ATB_EXECUTE convention).
+#   5. Disable the Mac launchd job so there is exactly ONE canonical daily
+#      writer:  launchctl unload ~/Library/LaunchAgents/com.charles.atb-daily.plist
+#
+# Schedule: 14:35 UTC = 7:35am PDT (6:35am PST — shifts with DST; adjust in
+# November if the pre-market timing matters).
+
+name: daily-run
+
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   - cron: "35 14 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-run
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+      ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+      ATB_EXECUTE: ${{ vars.ATB_EXECUTE || '0' }}
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet alpaca-py anthropic finnhub-python yfinance \
+            pandas python-dotenv
+
+      - name: Guard — secrets present
+        run: |
+          if [ -z "$ALPACA_API_KEY" ] || [ -z "$FINNHUB_API_KEY" ]; then
+            echo "::error::Repo secrets not configured — see setup notes in this file."
+            exit 1
+          fi
+
+      - name: Grade matured predictions
+        run: python scripts/grade.py
+
+      - name: Scan for PEAD candidates
+        run: python scripts/scan.py
+
+      - name: Run the brain (dry run unless ATB_EXECUTE=1)
+        run: |
+          if [ "$ATB_EXECUTE" = "1" ]; then
+            python scripts/run_once.py --execute
+          else
+            python scripts/run_once.py
+          fi
+
+      - name: Report to ceos-enterprise dashboard
+        run: python scripts/report.py || true
+
+      - name: Commit prediction log back to main
+        run: |
+          git config user.name "atb-daily-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f data/predictions.jsonl 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No prediction changes to commit."
+          else
+            git commit -m "daily-run: predictions $(date -u '+%Y-%m-%d')"
+            git pull --rebase origin main
+            git push origin main
+          fi
