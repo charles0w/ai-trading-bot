@@ -16,6 +16,7 @@ import argparse
 import os
 import sys
 import traceback
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -53,10 +54,27 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols", default=",".join(DEFAULT_UNIVERSE))
     ap.add_argument("--execute", action="store_true", help="place paper orders (default: dry run)")
+    ap.add_argument("--with-scan", action="store_true",
+                    help="append liquid names that reported earnings in the last 8 days "
+                         "(the PEAD candidates scan.py surfaces) — without this, unattended "
+                         "runs only ever see the default universe and miss the strategy's "
+                         "actual setups")
     args = ap.parse_args()
 
     key, secret = os.environ["ALPACA_API_KEY"], os.environ["ALPACA_SECRET_KEY"]
     provider = FinnhubProvider(price_provider=YFinanceProvider())
+
+    symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+    if args.with_scan:
+        from atb.universe import LIQUID
+        today = date.today()
+        cal = provider.earnings_calendar(today - timedelta(days=8), today)
+        reporters = sorted({it["symbol"] for it in cal
+                            if it.get("symbol") in LIQUID and it.get("epsActual") is not None})
+        added = [s for s in reporters if s not in symbols]
+        if added:
+            print(f"(scan: +{len(added)} recent reporters: {','.join(added)})")
+        symbols += added  # signal's entry_window (1-5d) gates the out-of-window ones
     signal = _load_signal()
     analyst = LLMAnalyst(anthropic_completion())
     broker = AlpacaBroker(key, secret, paper=True)
@@ -64,7 +82,7 @@ def main() -> None:
     predlog = PredictionLog("data/predictions.jsonl")
 
     print(f"{'SYMBOL':8} {'DECISION':10} REASON / DETAIL")
-    for sym in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
+    for sym in symbols:
         try:
             d = run_symbol(sym, provider=provider, signal=signal, analyst=analyst,
                            broker=broker, store=store, predlog=predlog, execute=args.execute)

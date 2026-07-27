@@ -77,10 +77,13 @@ jobs:
 
       - name: Run the brain (dry run unless ATB_EXECUTE=1)
         run: |
+          # --with-scan appends recent liquid reporters (the actual PEAD
+          # candidates) to the default universe; without it the automation
+          # only ever evaluates 9 mega-caps and misses the strategy.
           if [ "$ATB_EXECUTE" = "1" ]; then
-            python scripts/run_once.py --execute
+            python scripts/run_once.py --with-scan --execute
           else
-            python scripts/run_once.py
+            python scripts/run_once.py --with-scan
           fi
 
       - name: Report to ceos-enterprise dashboard
