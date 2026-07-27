@@ -5,7 +5,7 @@ computed from."""
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,36 @@ class Prediction:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
+_RENAMES = {"ticker": "symbol"}          # 2026-07 legacy schema (morning-watch era)
+_FIELDS = {f.name for f in fields(Prediction)}
+
+
+def _normalize(raw: dict) -> dict:
+    """Adapt a raw JSONL row to the current Prediction schema.
+
+    Legacy rows (seeded from the vault mirror) use `ticker` instead of
+    `symbol`, carry extra keys (`signals`, `entry_ref_source`, ...), and hold
+    categorical convictions ("low"/"medium"). Renames map across, unknown keys
+    are preserved under `meta`, and string convictions become None (honest —
+    fabricating a numeric conviction would pollute brier/calibration) with the
+    label kept as meta["conviction_label"]."""
+    d: dict[str, Any] = {}
+    meta = dict(raw.get("meta") or {})
+    for k, v in raw.items():
+        if k == "meta":
+            continue
+        k = _RENAMES.get(k, k)
+        if k in _FIELDS:
+            d[k] = v
+        else:
+            meta.setdefault(k, v)
+    if isinstance(d.get("conviction"), str):
+        meta.setdefault("conviction_label", d["conviction"])
+        d["conviction"] = None
+    d["meta"] = meta
+    return d
+
+
 class PredictionLog:
     def __init__(self, path: str | Path = "data/predictions.jsonl"):
         self.path = Path(path)
@@ -45,7 +75,7 @@ class PredictionLog:
         for line in self.path.read_text().splitlines():
             line = line.strip()
             if line:
-                out.append(Prediction(**json.loads(line)))
+                out.append(Prediction(**_normalize(json.loads(line))))
         return out
 
     def update(self, pred_id: str, **fields: Any) -> bool:

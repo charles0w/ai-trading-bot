@@ -45,6 +45,20 @@ def load_predictions() -> list[dict]:
     return rows
 
 
+def conviction_label(r: dict) -> str:
+    """Robust across schemas: legacy string convictions, normalized rows with
+    meta.conviction_label, and the new pipeline's numeric convictions."""
+    meta = r.get("meta") or {}
+    if isinstance(meta.get("conviction_label"), str):
+        return meta["conviction_label"]
+    c = r.get("conviction")
+    if isinstance(c, str):
+        return c
+    if isinstance(c, (int, float)):
+        return "high" if c >= 0.7 else "medium" if c >= 0.45 else "low"
+    return "unknown"
+
+
 def scorecard(rows: list[dict]) -> dict:
     graded = [r for r in rows if r.get("status") == "graded"]
     open_ = [r for r in rows if r.get("status") == "open"]
@@ -54,8 +68,7 @@ def scorecard(rows: list[dict]) -> dict:
 
     by_conv: dict[str, dict] = {}
     for r in graded:
-        c = str(r.get("conviction", "unknown"))
-        b = by_conv.setdefault(c, {"graded": 0, "correct": 0})
+        b = by_conv.setdefault(conviction_label(r), {"graded": 0, "correct": 0})
         b["graded"] += 1
         b["correct"] += int(bool(r.get("correct")))
 

@@ -23,6 +23,35 @@ def test_predictionlog_roundtrip(tmp_path):
     assert reloaded["b"].status == "open"
 
 
+# --- legacy schema normalization (2026-07 vault-mirror seed) ---
+
+def test_load_normalizes_legacy_rows(tmp_path):
+    # real shape from the morning-watch-era log: `ticker` key, string
+    # conviction, extra fields — used to raise TypeError in load()
+    legacy = {"id": "2026-07-08-XLF", "date": "2026-07-08", "ticker": "XLF",
+              "direction": "down", "horizon_days": 5, "entry_ref": 54.97,
+              "rationale": "r", "signals": ["mover:XLF-1.93%"],
+              "conviction": "low", "status": "graded",
+              "graded_date": "2026-07-13", "exit_ref": 56.07,
+              "correct": False, "return_pct": 2.0, "entry_ref_source": "yfinance"}
+    path = tmp_path / "p.jsonl"
+    path.write_text(__import__("json").dumps(legacy) + "\n")
+    log = PredictionLog(path)
+    (p,) = log.load()
+    assert p.symbol == "XLF"
+    assert p.conviction is None                      # honest: not fabricated
+    assert p.meta["conviction_label"] == "low"       # label preserved
+    assert p.meta["signals"] == ["mover:XLF-1.93%"]  # extras preserved
+    assert p.meta["entry_ref_source"] == "yfinance"
+    # metrics that do arithmetic on conviction must not crash on legacy rows
+    assert brier([p]) is None
+    assert summary([p])["n_graded"] == 1
+    # update() rewrites in the new schema and stays loadable
+    assert log.update(p.id, exit_ref=56.10)
+    (p2,) = log.load()
+    assert p2.symbol == "XLF" and p2.meta["conviction_label"] == "low"
+
+
 # --- grading ---
 
 def test_grade_up_and_down():
