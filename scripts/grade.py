@@ -28,10 +28,16 @@ from atb.eval.reliability import summary
 from atb.eval.predictions import PredictionLog
 
 
+# Index tickers logged bare in the legacy era — yfinance needs the ^ prefix
+# (a bare "RUT" returns nothing, leaving the prediction open forever).
+_YF_ALIASES = {"RUT": "^RUT", "GSPC": "^GSPC", "VIX": "^VIX", "DJI": "^DJI"}
+
+
 def main() -> None:
     predlog = PredictionLog("data/predictions.jsonl")
     provider = YFinanceProvider()
-    graded = grade_due(predlog, lambda s: provider.latest_price(s), asof=date.today())
+    graded = grade_due(predlog, lambda s: provider.latest_price(_YF_ALIASES.get(s, s)),
+                       asof=date.today())
     print(f"Newly graded: {len(graded)} {graded}")
     print("Scorecard:")
     print(json.dumps(summary(predlog.load()), indent=2, default=str))

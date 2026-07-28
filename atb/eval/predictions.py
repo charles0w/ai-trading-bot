@@ -68,6 +68,21 @@ class PredictionLog:
         with self.path.open("a") as f:
             f.write(json.dumps(asdict(pred)) + "\n")
 
+    def has(self, pred_id: str) -> bool:
+        """True if a row with this id exists — lets callers stay idempotent
+        across same-day re-runs without loading full Prediction objects."""
+        if not self.path.exists():
+            return False
+        for line in self.path.read_text().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    if json.loads(line).get("id") == pred_id:
+                        return True
+                except json.JSONDecodeError:
+                    continue
+        return False
+
     def load(self) -> list[Prediction]:
         if not self.path.exists():
             return []

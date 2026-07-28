@@ -49,7 +49,11 @@ def _disagree_analyst():
     return LLMAnalyst(lambda prompt: '{"direction":"down","conviction":0.9,"rationale":"fade"}')
 
 
-def test_pipeline_dry_run_logs_prediction_no_position(tmp_path):
+def _by_component(predlog):
+    return {p.meta.get("component"): p for p in predlog.load()}
+
+
+def test_pipeline_dry_run_logs_component_and_combined_predictions(tmp_path):
     store = SQLiteStore(":memory:")
     predlog = PredictionLog(tmp_path / "p.jsonl")
     d = run_symbol("NVDA", provider=_Provider(), signal=PeadHeuristicModel(),
@@ -57,8 +61,12 @@ def test_pipeline_dry_run_logs_prediction_no_position(tmp_path):
                    predlog=predlog, asof=ASOF, now_pt=NOW_PT, execute=False)
     assert d.decision == "dry_run"
     assert d.intent is not None and d.intent.direction == "long_call"
-    assert len(predlog.load()) == 1
-    assert store.open_positions() == []      # nothing placed in dry run
+    preds = _by_component(predlog)
+    assert set(preds) == {"ml", "llm", "combined"}   # thesis-level logging
+    assert preds["ml"].direction == "up" and preds["llm"].direction == "up"
+    assert preds["combined"].meta["stage"] == "dry_run"
+    assert preds["combined"].meta["occ_symbol"]      # enriched after sizing
+    assert store.open_positions() == []              # nothing placed in dry run
 
 
 def test_pipeline_execute_opens_position(tmp_path):
@@ -69,14 +77,29 @@ def test_pipeline_execute_opens_position(tmp_path):
                    store=store, predlog=predlog, asof=ASOF, now_pt=NOW_PT, execute=True)
     assert d.decision == "placed" and d.position_id is not None
     assert len(store.open_positions()) == 1
-    assert len(predlog.load()) == 1
+    preds = _by_component(predlog)
+    assert set(preds) == {"ml", "llm", "combined"}
+    assert preds["combined"].meta["stage"] == "placed"
 
 
-def test_pipeline_no_trade_on_disagreement(tmp_path):
+def test_pipeline_no_trade_on_disagreement_still_logs_theses(tmp_path):
     store = SQLiteStore(":memory:")
     predlog = PredictionLog(tmp_path / "p.jsonl")
     d = run_symbol("NVDA", provider=_Provider(), signal=PeadHeuristicModel(),
                    analyst=_disagree_analyst(), broker=FakeBroker(), store=store,
                    predlog=predlog, asof=ASOF, now_pt=NOW_PT, execute=False)
     assert d.decision == "no_trade" and d.reason == "signal_no_trade"
-    assert predlog.load() == []
+    # no combined prediction, but BOTH component theses are gradeable data
+    preds = _by_component(predlog)
+    assert set(preds) == {"ml", "llm"}
+    assert preds["ml"].direction == "up" and preds["llm"].direction == "down"
+
+
+def test_pipeline_same_day_rerun_is_idempotent(tmp_path):
+    store = SQLiteStore(":memory:")
+    predlog = PredictionLog(tmp_path / "p.jsonl")
+    for _ in range(2):
+        run_symbol("NVDA", provider=_Provider(), signal=PeadHeuristicModel(),
+                   analyst=_agree_analyst(), broker=FakeBroker(), store=store,
+                   predlog=predlog, asof=ASOF, now_pt=NOW_PT, execute=False)
+    assert len(predlog.load()) == 3   # ml + llm + combined, no duplicates

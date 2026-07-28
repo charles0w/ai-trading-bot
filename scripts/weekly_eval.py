@@ -72,6 +72,24 @@ def scorecard(rows: list[dict]) -> dict:
         b["graded"] += 1
         b["correct"] += int(bool(r.get("correct")))
 
+    # Per-component: "ml" / "llm" / "combined" (rows without a component tag are
+    # the pre-pivot morning-watch era → "legacy"). This is what answers "which
+    # layer adds edge" — the gate question for Aug 20.
+    by_comp: dict[str, dict] = {}
+    for r in graded:
+        comp = (r.get("meta") or {}).get("component") or "legacy"
+        b = by_comp.setdefault(comp, {"graded": 0, "correct": 0, "rets": []})
+        b["graded"] += 1
+        b["correct"] += int(bool(r.get("correct")))
+        if isinstance(r.get("return_pct"), (int, float)):
+            b["rets"].append(r["return_pct"])
+    by_component = {
+        c: {"graded": b["graded"], "correct": b["correct"],
+            "hit_rate": round(b["correct"] / b["graded"], 3),
+            "mean_return_pct": round(sum(b["rets"]) / len(b["rets"]), 2) if b["rets"] else None}
+        for c, b in by_comp.items()
+    }
+
     newest = dates[-1] if dates else None
     days_stale = (date.today() - date.fromisoformat(newest)).days if newest else None
     return {
@@ -82,6 +100,7 @@ def scorecard(rows: list[dict]) -> dict:
         "hit_rate": round(len(correct) / len(graded), 3) if graded else None,
         "mean_return_pct": round(sum(rets) / len(rets), 2) if rets else None,
         "by_conviction": by_conv,
+        "by_component": by_component,
         "newest_entry": newest,
         "days_since_newest_entry": days_stale,
     }
@@ -121,6 +140,11 @@ def render(card: dict, verdict: str) -> str:
         f"{(b['correct'] / b['graded']):.0%} |"
         for c, b in sorted(card["by_conviction"].items())
     ) or "| — | 0 | 0 | — |"
+    comp_rows = "\n".join(
+        f"| {c} | {b['graded']} | {b['hit_rate']:.0%} | "
+        f"{(f'{b['mean_return_pct']:+.2f}%' if b['mean_return_pct'] is not None else '—')} |"
+        for c, b in sorted(card["by_component"].items())
+    ) or "| — | 0 | — | — |"
     hit = f"{card['hit_rate']:.1%}" if card["hit_rate"] is not None else "—"
     mean = f"{card['mean_return_pct']:+.2f}%" if card["mean_return_pct"] is not None else "—"
     return f"""# Weekly eval — {card['asof']}
@@ -149,6 +173,12 @@ Scorecard is computed from `data/predictions.jsonl`; the narrative only interpre
 | Conviction | Graded | Correct | Hit rate |
 |---|---|---|---|
 {conv_rows}
+
+### By component (ml = signal alone, llm = analyst alone, combined = the gate; legacy = pre-pivot era)
+
+| Component | Graded | Hit rate | Mean return |
+|---|---|---|---|
+{comp_rows}
 """
 
 
