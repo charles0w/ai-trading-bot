@@ -151,3 +151,8 @@ class FinnhubProvider:
         if self.price_provider:
             return self.price_provider.option_chain(symbol, expiry=expiry, option_type=option_type)
         return []
+
+    def option_expiries(self, symbol: str) -> list[date]:
+        if self.price_provider and hasattr(self.price_provider, "option_expiries"):
+            return self.price_provider.option_expiries(symbol)
+        return []

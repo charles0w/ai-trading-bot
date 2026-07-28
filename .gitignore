@@ -20,6 +20,7 @@ env/
 /data/*
 !/data/model.json
 !/data/predictions.jsonl
+!/data/chain_snapshots.jsonl
 *.duckdb
 *.duckdb.wal
 *.parquet

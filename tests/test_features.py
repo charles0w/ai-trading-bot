@@ -120,6 +120,81 @@ def test_drift_true_zero_survives_when_later_bar_exists():
     assert fv.post_earnings_return == 0.0
 
 
+# --- drift decomposition (gap vs subsequent drift — pop-and-fade detection) ---
+
+def test_drift_decomposition_separates_gap_from_fade():
+    # print-day close 100, next session gaps to 108, then bleeds to 103:
+    # old single number said +3% "drift"; decomposition shows +8% gap, -4.6% fade
+    closes = [100.0] * 296 + [100.0, 108.0, 105.0, 103.0]
+    bars = _bars(300, date(2025, 8, 1), lambda i: closes[i])
+    asof = bars[-1].day
+    earn = EarningsEvent(symbol="INTC", day=bars[-4].day, eps_actual=1.3, eps_estimate=1.0)
+    fv = compute_features(FakeProvider(bars, earnings=earn), "INTC", asof=asof)
+    assert abs(fv.gap_day1 - 0.08) < 1e-9                      # 108/100 - 1
+    assert abs(fv.drift_since_day1 - (103.0 / 108.0 - 1)) < 1e-9   # fading
+    assert fv.post_earnings_return is not None and fv.post_earnings_return > 0
+
+
+def test_drift_decomposition_none_without_post_print_bar():
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100 * (1.001 ** i))
+    asof = bars[-1].day + timedelta(days=2)
+    earn = EarningsEvent(symbol="INTC", day=bars[-1].day, eps_actual=1.2, eps_estimate=1.0)
+    fv = compute_features(FakeProvider(bars, earnings=earn), "INTC", asof=asof)
+    assert fv.gap_day1 is None and fv.drift_since_day1 is None
+
+
+# --- peer-earnings surprise (A4/A6) ---
+
+class CalendarProvider(FakeProvider):
+    def __init__(self, bars, calendar, **kw):
+        super().__init__(bars, **kw)
+        self._cal = calendar
+
+    def earnings_calendar(self, frm, to, symbol=None):
+        return self._cal
+
+
+def test_peer_surprise_fires_for_non_reporter(monkeypatch):
+    import atb.features as F
+    monkeypatch.setattr(F, "_peer_cal_cache", {})
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100.0)
+    cal = [
+        {"symbol": "INTC", "epsActual": 1.2, "epsEstimate": 1.0},   # +20% — AMD's peer
+        {"symbol": "JPM", "epsActual": 0.9, "epsEstimate": 1.0},    # not AMD's peer
+    ]
+    fv = compute_features(CalendarProvider(bars, cal), "AMD", asof=bars[-1].day)
+    assert abs(fv.peer_surprise_pct - 20.0) < 1e-9
+    assert fv.meta["peer_symbol"] == "INTC"
+
+
+def test_peer_surprise_none_without_peer_events(monkeypatch):
+    import atb.features as F
+    monkeypatch.setattr(F, "_peer_cal_cache", {})
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100.0)
+    cal = [{"symbol": "XOM", "epsActual": 2.0, "epsEstimate": 1.0}]  # not a semi peer
+    fv = compute_features(CalendarProvider(bars, cal), "AMD", asof=bars[-1].day)
+    assert fv.peer_surprise_pct is None
+
+
+# --- VIX regime ---
+
+class VixProvider(FakeProvider):
+    def daily_bars(self, symbol, *, lookback_days=500):
+        if symbol == "^VIX":
+            vals = [15.0] * 34 + [16.0, 18.0, 20.0, 22.0, 23.0, 24.0]
+            return _bars(40, date(2026, 5, 1), lambda i: vals[i])
+        return self._bars
+
+
+def test_vix_regime_level_and_change(monkeypatch):
+    import atb.features as F
+    monkeypatch.setattr(F, "_vix_cache", {})
+    bars = _bars(300, date(2025, 8, 1), lambda i: 100.0)
+    fv = compute_features(VixProvider(bars), "AAPL", asof=bars[-1].day)
+    assert fv.vix == 24.0
+    assert abs(fv.vix_5d_change - (24.0 / 16.0 - 1)) < 1e-9   # spiking regime
+
+
 # --- baseline intent stub ---
 
 def test_baseline_long_call_in_window():

@@ -89,15 +89,15 @@ jobs:
       - name: Report to ceos-enterprise dashboard
         run: python scripts/report.py || true
 
-      - name: Commit prediction log back to main
+      - name: Commit prediction log + chain snapshots back to main
         run: |
           git config user.name "atb-daily-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add -f data/predictions.jsonl 2>/dev/null || true
+          git add -f data/predictions.jsonl data/chain_snapshots.jsonl 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No prediction changes to commit."
+            echo "No prediction/snapshot changes to commit."
           else
-            git commit -m "daily-run: predictions $(date -u '+%Y-%m-%d')"
+            git commit -m "daily-run: predictions + chain snapshots $(date -u '+%Y-%m-%d')"
             git pull --rebase origin main
             git push origin main
           fi

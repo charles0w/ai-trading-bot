@@ -42,6 +42,7 @@ class OptionQuote:
     iv: float | None = None
     delta: float | None = None
     open_interest: int | None = None
+    volume: float | None = None         # day's contract volume (for V/OI flow)
 
     @property
     def spread_pct(self) -> float | None:
@@ -66,3 +67,10 @@ class MarketDataProvider(Protocol):
     def option_chain(self, symbol: str, *, expiry: date, option_type: str) -> list[OptionQuote]:
         """Best-effort; may return [] if the provider lacks options data."""
         ...
+
+
+# Optional capability (NOT part of the Protocol, so bar-only fakes/providers
+# stay valid): providers that can enumerate listed option expiries expose
+#     option_expiries(symbol) -> list[date]
+# Callers must feature-detect with hasattr(); the feature builder skips chain
+# enrichment when the capability is absent.

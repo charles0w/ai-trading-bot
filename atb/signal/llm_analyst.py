@@ -34,9 +34,16 @@ def build_prompt(fv: FeatureVector) -> str:
         "symbol": fv.symbol, "asof": str(fv.asof), "spot": fv.spot,
         "sue": fv.sue, "days_since_earnings": fv.days_since_earnings,
         "post_earnings_return": fv.post_earnings_return,
+        "gap_day1": fv.gap_day1,
+        "drift_since_day1": fv.drift_since_day1,
+        "peer_surprise_pct": fv.peer_surprise_pct,
+        "peer_symbol": fv.meta.get("peer_symbol"),
         "mom_12_1": fv.mom_12_1, "mom_6_1": fv.mom_6_1,
         "pct_from_52w_high": fv.pct_from_52w_high,
-        "realized_vol_20d": fv.realized_vol_20d, "iv_rank": fv.iv_rank,
+        "realized_vol_20d": fv.realized_vol_20d,
+        "atm_iv": fv.atm_iv, "iv_rank": fv.iv_rank,
+        "option_spread_pct": fv.spread_pct, "atm_open_interest": fv.open_interest,
+        "vix": fv.vix, "vix_5d_change": fv.vix_5d_change,
     }
     return (
         "You are a disciplined equity-options swing analyst. Strategy: "
@@ -44,6 +51,14 @@ def build_prompt(fv: FeatureVector) -> str:
         "with long calls/puts over ~3-6 weeks. Be skeptical: most setups are NOT "
         "tradeable. Given the features below, decide whether the drift is likely to "
         "continue and in which direction.\n\n"
+        "Feature notes: gap_day1 is the initial post-print reaction and "
+        "drift_since_day1 the move since — a big gap with fading drift is the "
+        "pop-and-fade anti-pattern, not continuation. peer_surprise_pct is the "
+        "strongest EPS surprise from a close peer in the last 2 days (peer "
+        "catalysts move neighbors both directions). atm_iv/iv_rank/spread are "
+        "the ~35-DTE ATM call snapshot — rich or wide options can make a "
+        "correct thesis untradeable. vix/vix_5d_change give the macro regime; "
+        "a spiking VIX argues for standing aside. Null means unavailable.\n\n"
         f"FEATURES:\n{json.dumps(feats, indent=2)}\n\n"
         'Respond with ONLY a JSON object: {"direction": "up"|"down"|"flat", '
         '"conviction": 0.0-1.0, "rationale": "one sentence"}. '

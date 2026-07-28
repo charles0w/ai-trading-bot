@@ -106,6 +106,13 @@ class YFinanceProvider:
         out.sort(key=lambda e: e.day)
         return out
 
+    def option_expiries(self, symbol: str) -> list[date]:
+        """Listed option expiries (optional capability — see provider.py)."""
+        try:
+            return [date.fromisoformat(e) for e in (self._ticker(symbol).options or ())]
+        except Exception:
+            return []
+
     def option_chain(self, symbol: str, *, expiry: date, option_type: str) -> list[OptionQuote]:
         try:
             chain = self._ticker(symbol).option_chain(expiry.isoformat())
@@ -121,5 +128,6 @@ class YFinanceProvider:
                 bid=_f(r.get("bid")), ask=_f(r.get("ask")),
                 iv=_f(r.get("impliedVolatility")),
                 open_interest=int(oi) if oi is not None and oi == oi else None,
+                volume=_f(r.get("volume")),
             ))
         return out
