@@ -54,3 +54,24 @@ jobs:
             git pull --rebase origin main
             git push origin main
           fi
+
+      - name: Mirror into the vault (obi-secondbrain)
+        env:
+          VAULT_DEPLOY_KEY: ${{ secrets.VAULT_DEPLOY_KEY }}
+        run: |
+          if [ -z "$VAULT_DEPLOY_KEY" ]; then echo "no VAULT_DEPLOY_KEY — skipping mirror"; exit 0; fi
+          mkdir -p ~/.ssh
+          printf '%s' "$VAULT_DEPLOY_KEY" > ~/.ssh/vault_key && chmod 600 ~/.ssh/vault_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/vault_key -o IdentitiesOnly=yes"
+          git clone --depth 1 git@github.com:charles0w/obi-secondbrain.git /tmp/vault
+          python scripts/vault_mirror.py /tmp/vault --mode weekly
+          cd /tmp/vault
+          git config user.name "atb-mirror-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "vault already current"; exit 0; fi
+          git commit -m "ai-trading-bot: mirror weekly eval $(date -u '+%Y-%m-%d')"
+          for i in 1 2 3; do
+            git push origin main && break || git pull --rebase origin main
+          done
