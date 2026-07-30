@@ -61,7 +61,8 @@ jobs:
         run: |
           if [ -z "$VAULT_DEPLOY_KEY" ]; then echo "no VAULT_DEPLOY_KEY — skipping mirror"; exit 0; fi
           mkdir -p ~/.ssh
-          printf '%s' "$VAULT_DEPLOY_KEY" > ~/.ssh/vault_key && chmod 600 ~/.ssh/vault_key
+          printf '%s\n' "$VAULT_DEPLOY_KEY" | tr -d '\r' > ~/.ssh/vault_key
+          chmod 600 ~/.ssh/vault_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/vault_key -o IdentitiesOnly=yes"
           git clone --depth 1 git@github.com:charles0w/obi-secondbrain.git /tmp/vault
