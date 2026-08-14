@@ -13,14 +13,14 @@ CEOS_DASHBOARD_URL (default https://ceos-enterprise.vercel.app).
 
 from __future__ import annotations
 
+import collections
 import json
 import os
-import re
 import sqlite3
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
@@ -39,13 +39,18 @@ DRY = "--dry" in sys.argv
 
 
 def _post(path: str, payload: dict) -> None:
+    """Raises on any delivery failure. The caller turns that into a non-zero
+    exit so a broken dashboard feed fails the workflow loudly — this used to
+    swallow errors (and a missing secret) and exit 0, which is how the feed went
+    stale unnoticed."""
     if DRY:
         print(f"--- DRY {path} ---")
         print(json.dumps(payload, indent=2)[:1500])
         return
     if not SECRET:
-        print(f"no CEOS_REPORT_SECRET — skipping {path}")
-        return
+        raise RuntimeError(
+            "CEOS_REPORT_SECRET is not set — the dashboard feed cannot be "
+            "delivered. Set it in .env locally, or as a repo secret for Actions.")
     req = urllib.request.Request(
         BASE + path, data=json.dumps(payload).encode(),
         headers={"content-type": "application/json", "x-report-secret": SECRET})
@@ -53,39 +58,46 @@ def _post(path: str, payload: dict) -> None:
         with urllib.request.urlopen(req, timeout=20) as r:
             print(path, "->", r.status)
     except urllib.error.HTTPError as e:
-        print(path, "HTTP", e.code, e.read()[:160])
+        raise RuntimeError(f"{path} HTTP {e.code}: {e.read()[:160]!r}") from e
     except Exception as e:
-        print(path, "ERR", type(e).__name__, str(e)[:120])
+        raise RuntimeError(f"{path} {type(e).__name__}: {str(e)[:120]}") from e
 
 
-def _last_run_block() -> str:
-    """The most recent run's section of logs/daily.log, de-noised — used as the
-    activity-log detail for this fire."""
-    p = "logs/daily.log"
-    if not os.path.exists(p):
-        return ""
-    txt = open(p, errors="replace").read()
-    parts = txt.split("=====")
-    block = ("=====" + parts[-1]) if len(parts) >= 2 else txt[-4000:]
-    keep = [ln for ln in block.splitlines()
-            if "NotOpenSSLWarning" not in ln and "warnings.warn" not in ln
-            and "urllib3/__init__" not in ln]
-    return "\n".join(keep).strip()[:7000]
+def run_record_from_predictions(rows: list[dict], *, graded_today: int,
+                                today: str) -> dict:
+    """Activity record for this fire, derived from the prediction log.
 
+    This used to parse logs/daily.log, but the Actions workflow calls the python
+    scripts directly rather than run_daily.sh, so that file never exists on the
+    runner and the detail was always empty. The prediction log is the artifact
+    both paths actually write.
 
-def _run_record(note: str) -> dict:
-    block = _last_run_block()
-    # one decision per run_once line: "AAPL   no_trade   signal_no_trade"
-    decisions = re.findall(r"(?m)^\s*\S+\s+(no_trade|placed|rejected|dry_run|error)\b", block)
-    no_trade = decisions.count("no_trade")
-    placed = decisions.count("placed")
-    errors = decisions.count("error") + len(re.findall(r"Traceback|HTTP 5\d\d", block))
-    g = re.search(r"Newly graded:\s*(\d+)", block)
-    graded = g.group(1) if g else "0"
-    summary = f"{no_trade} no-trade · {placed} placed · {graded} graded today"
-    if errors:
-        summary += f" · {errors} errors"
-    return {"ok": errors == 0, "summary": summary, "detail": block or note}
+    A trading day that logged no new predictions is reported NOT ok: that is the
+    silent-miss signature (the 2026-08-06 dropped run), and it should surface on
+    the dashboard rather than read as a healthy zero-trade day.
+    """
+    todays = [r for r in rows if r.get("date") == today]
+    by_component = collections.Counter(
+        (r.get("meta") or {}).get("component") for r in todays)
+    placed = sum(1 for r in todays
+                 if (r.get("meta") or {}).get("stage") in ("placed", "dry_run"))
+    summary = (f"{len(todays)} new ({by_component['ml']} ml · "
+               f"{by_component['llm']} llm · {by_component['combined']} combined) · "
+               f"{placed} placed · {graded_today} graded today")
+    def _line(r: dict) -> str:
+        # Every field is coerced: legacy rows predate the current schema (null
+        # conviction, no component) and this runs in a step that now fails the
+        # workflow, so a malformed row must not take the run down with it.
+        conv = r.get("conviction")
+        conv = f"{conv:.2f}" if isinstance(conv, (int, float)) else "—"
+        meta = r.get("meta") or {}
+        return (f"{str(r.get('symbol') or '?'):<6} "
+                f"{str(meta.get('component') or '?'):<9} "
+                f"{str(r.get('direction') or '?'):<5} conv={conv}  "
+                f"stage={meta.get('stage', '-')}")
+
+    detail = "\n".join(_line(r) for r in todays) or "no predictions logged today"
+    return {"ok": bool(todays), "summary": summary, "detail": detail[:7000]}
 
 
 def _upcoming(days: int = 7) -> list[dict]:
@@ -106,7 +118,39 @@ def _upcoming(days: int = 7) -> list[dict]:
         return []
 
 
-def _positions() -> list[dict]:
+def _broker():
+    """Live Alpaca paper broker, or None if credentials/SDK are unavailable."""
+    key, secret = os.environ.get("ALPACA_API_KEY"), os.environ.get("ALPACA_SECRET_KEY")
+    if not key or not secret:
+        print("broker unavailable: ALPACA_API_KEY/ALPACA_SECRET_KEY not set")
+        return None
+    try:
+        from trader_core.broker.alpaca_client import AlpacaBroker
+        return AlpacaBroker(key, secret, paper=True)
+    except Exception as e:
+        print("broker unavailable:", type(e).__name__, str(e)[:100])
+        return None
+
+
+def positions_from_broker(broker) -> list[dict] | None:
+    """Open positions as dashboard rows, or None when the broker is unreachable.
+
+    None and [] mean different things: [] is an account with nothing open, None
+    is "don't know" and tells the caller to fall back rather than publish a
+    confident zero.
+    """
+    if broker is None:
+        return None
+    try:
+        return [{"occ_symbol": p.occ_symbol, "quantity": p.quantity,
+                 "entry_price": p.entry_price, "mark": p.mark_price,
+                 "entry_at_utc": None} for p in broker.list_positions()]
+    except Exception as e:
+        print("list_positions failed:", type(e).__name__, str(e)[:100])
+        return None
+
+
+def _positions_from_sqlite() -> list[dict]:
     if not os.path.exists(DB):
         return []
     con = sqlite3.connect(DB)
@@ -121,10 +165,26 @@ def _positions() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def collect_positions() -> list[dict]:
+    """Alpaca first (it is the position-keeper of record), local SQLite as a
+    fallback. data/atb.db is gitignored, so on the Actions runner only the
+    broker has this — reading SQLite alone reported zero open positions
+    forever."""
+    rows = positions_from_broker(_broker())
+    return rows if rows is not None else _positions_from_sqlite()
+
+
 def main() -> None:
     preds = PredictionLog(PREDS).load()
     sc = summary(preds)
-    positions = _positions()
+    positions = collect_positions()
+    today = date.today().isoformat()
+    run = run_record_from_predictions(
+        [{"date": p.date, "symbol": p.symbol, "direction": p.direction,
+          "conviction": p.conviction, "meta": p.meta} for p in preds],
+        graded_today=sum(1 for p in preds if p.graded_date == today),
+        today=today,
+    )
 
     model = {}
     if os.path.exists(MODEL):
@@ -150,10 +210,10 @@ def main() -> None:
         metrics.append({"label": "Open pos", "value": len(positions)})
 
     status = {
-        "state": "ok",
+        "state": "ok" if run["ok"] else "warn",
         "lastRun": datetime.now(timezone.utc).isoformat(),
         "summary": f"PEAD options swing (paper) — {note}",
-        "ok": True,
+        "ok": run["ok"],
         "metrics": metrics[:3],
     }
     if sc["n_graded"] > 0 and sc["hit_rate"] is not None:
@@ -165,7 +225,7 @@ def main() -> None:
     _post("/api/finance", {
         "model": model, "scorecard": sc, "predictions": preds_payload,
         "positions": positions, "candidates": [], "upcoming": _upcoming(),
-        "note": note, "run": _run_record(note),
+        "note": note, "run": run,
     })
 
 

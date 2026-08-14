@@ -74,6 +74,9 @@ class Broker(ABC):
     def get_position(self, occ_symbol: str) -> PositionSnapshot | None: ...
 
     @abstractmethod
+    def list_positions(self) -> list[PositionSnapshot]: ...
+
+    @abstractmethod
     def get_option_mark(self, occ_symbol: str) -> float | None: ...
 
     @abstractmethod

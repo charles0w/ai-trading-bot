@@ -86,9 +86,6 @@ jobs:
             python scripts/run_once.py --with-scan
           fi
 
-      - name: Report to ceos-enterprise dashboard
-        run: python scripts/report.py || true
-
       - name: Commit prediction log + chain snapshots back to main
         run: |
           git config user.name "atb-daily-bot"
@@ -126,3 +123,12 @@ jobs:
           for i in 1 2 3; do
             git push origin main && break || git pull --rebase origin main
           done
+
+      # Deliberately LAST and deliberately NOT `|| true`. Last, so a reporter
+      # failure can never cost us the prediction/snapshot commit above (that
+      # data is unrecoverable — chain snapshots cannot be backfilled). Not
+      # swallowed, so a missing secret or a dashboard outage turns the run red
+      # instead of exiting 0 with a silently stale feed, which is exactly how
+      # this went unnoticed before 2026-08-13.
+      - name: Report to ceos-enterprise dashboard
+        run: python scripts/report.py

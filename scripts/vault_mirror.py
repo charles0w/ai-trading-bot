@@ -49,11 +49,52 @@ def _snapshot_count(day: str) -> int:
     return sum(1 for line in path.read_text().splitlines() if f'"date": "{day}"' in line)
 
 
+def missed_weekdays(existing: set[str], today: date, lookback: int = 7) -> list[str]:
+    """Weekdays in the `lookback` days before `today` that have no run note.
+
+    Today is excluded — its note is written moments after this check. Weekends
+    are skipped, but US market holidays are not (no calendar here), so a hit is
+    "suspicious", not "broken"; the callout says so.
+    """
+    out = []
+    for back in range(lookback, 0, -1):
+        day = date.fromordinal(today.toordinal() - back)
+        if day.weekday() >= 5:            # Sat/Sun
+            continue
+        if day.isoformat() not in existing:
+            out.append(day.isoformat())
+    return out
+
+
+def gap_callout(missing: list[str]) -> str:
+    """Obsidian admonition naming days with no run note, or '' when clean."""
+    if not missing:
+        return ""
+    days = " · ".join(f"`{d}`" for d in missing)
+    return (
+        "\n> [!warning] Missing run note(s): " + days + "\n"
+        "> No daily-run mirrored for these weekdays. Most likely a dropped\n"
+        "> GitHub `schedule:` trigger — or a market holiday, which is not\n"
+        "> checked here. Predictions and chain snapshots for a missed day are\n"
+        "> **not backfillable**; re-running the workflow later cannot recover\n"
+        "> them.\n"
+    )
+
+
+def _existing_run_days(vault: Path) -> set[str]:
+    runs = vault / PROJ / "runs"
+    if not runs.exists():
+        return set()
+    return {p.stem for p in runs.glob("*.md")}
+
+
 def _run_note(vault: Path, today: str) -> None:
     rows = load_predictions()
     new = [r for r in rows if r.get("date") == today]
     graded_today = [r for r in rows if r.get("graded_date") == today]
     card = scorecard(rows)
+    gaps = gap_callout(missed_weekdays(_existing_run_days(vault),
+                                       date.fromisoformat(today)))
 
     def fmt(r):
         comp = (r.get("meta") or {}).get("component", "combined")
@@ -83,7 +124,7 @@ tags: [ai-trading-bot, run-log]
 Auto-mirrored from the serverless daily-run (GitHub Actions). Data source of
 truth: `data/predictions.jsonl` + `data/chain_snapshots.jsonl` in the
 [code repo](https://github.com/charles0w/ai-trading-bot).
-
+{gaps}
 ## New predictions today ({len(new)})
 
 | id | component | dir | conviction | stage |

@@ -218,8 +218,19 @@ class AlpacaBroker(Broker):
             pos = self._trading.get_open_position(occ_symbol)
         except Exception:
             return None
+        return self._snapshot(pos, occ_symbol=occ_symbol)
+
+    def list_positions(self) -> list[PositionSnapshot]:
+        """Every open position on the account. Alpaca is the position-keeper of
+        record; the local SQLite store only mirrors what this machine placed, so
+        reporting reads this instead."""
+        positions = self._trading.get_all_positions()
+        return [self._snapshot(p) for p in positions]
+
+    @staticmethod
+    def _snapshot(pos, *, occ_symbol: str | None = None) -> PositionSnapshot:
         return PositionSnapshot(
-            occ_symbol=occ_symbol,
+            occ_symbol=occ_symbol or str(pos.symbol),
             quantity=int(pos.qty),
             entry_price=float(pos.avg_entry_price),
             mark_price=float(pos.current_price) if pos.current_price else None,

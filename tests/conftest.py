@@ -59,13 +59,15 @@ class FakeBroker(Broker):
     name = "fake"
 
     def __init__(self, *, fill_sequence=("filled",), avg_fill_price=2.50,
-                 mark=2.50, buying_power=100_000.0, spot=200.0, strike_step=5.0):
+                 mark=2.50, buying_power=100_000.0, spot=200.0, strike_step=5.0,
+                 positions=()):
         self._seq = list(fill_sequence)
         self._avg = avg_fill_price
         self._mark = mark
         self._bp = buying_power
         self._spot = spot
         self._strike_step = strike_step
+        self._positions = list(positions)
         self.placed: list[dict] = []
         self.canceled: list[str] = []
         self._poll_i = 0
@@ -101,7 +103,10 @@ class FakeBroker(Broker):
         self.canceled.append(broker_order_id)
 
     def get_position(self, occ_symbol):
-        return None
+        return next((p for p in self._positions if p.occ_symbol == occ_symbol), None)
+
+    def list_positions(self):
+        return list(self._positions)
 
     def get_option_mark(self, occ_symbol):
         return self._mark
@@ -135,6 +140,12 @@ class FakeBroker(Broker):
 @pytest.fixture
 def store():
     return InMemoryStore()
+
+
+@pytest.fixture
+def fake_broker_factory():
+    """FakeBroker builder — keyword args pass straight through."""
+    return FakeBroker
 
 
 @pytest.fixture
