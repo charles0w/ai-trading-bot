@@ -1282,3 +1282,16 @@
 {"date": "2026-11-25", "symbol": "QQQ", "expiry": "2026-12-31", "strike": 635.0, "atm_iv": 0.33255672332763675, "spread_pct": 1.5349194167306297, "oi": 2280, "volume": 672.0, "spot": 633.93}
 {"date": "2026-11-25", "symbol": "DIS", "expiry": "2026-12-31", "strike": 126.0, "atm_iv": 0.27210200561523434, "spread_pct": 22.81879194630874, "oi": 10, "volume": 7.0, "spot": 125.6}
 {"date": "2026-11-25", "symbol": "HD", "expiry": "2026-12-31", "strike": 360.0, "atm_iv": 0.2764354583740234, "spread_pct": 17.142857142857153, "oi": 23, "volume": 9.0, "spot": 361.26}
+{"date": "2026-11-26", "symbol": "WMT", "expiry": "2026-12-31", "strike": 132.0, "atm_iv": 0.28919167846679683, "spread_pct": 18.390804597701145, "oi": 39, "volume": 182.0, "spot": 131.94}
+{"date": "2026-11-26", "symbol": "AAPL", "expiry": "2026-12-31", "strike": 355.0, "atm_iv": 0.2720409710693359, "spread_pct": 7.5313807531380785, "oi": 4968, "volume": 298.0, "spot": 355.58}
+{"date": "2026-11-26", "symbol": "MSFT", "expiry": "2026-12-31", "strike": 490.0, "atm_iv": 0.3721681436157227, "spread_pct": 4.943820224719107, "oi": 18, "volume": 9.0, "spot": 489.93}
+{"date": "2026-11-26", "symbol": "NVDA", "expiry": "2026-12-31", "strike": 150.0, "atm_iv": 0.6824982922363283, "spread_pct": 2.0120724346076457, "oi": 3158, "volume": 2736.0, "spot": 149.3}
+{"date": "2026-11-26", "symbol": "AMZN", "expiry": "2026-12-31", "strike": 245.0, "atm_iv": 0.430242514038086, "spread_pct": 7.228915662650606, "oi": 26, "volume": 177.0, "spot": 244.43}
+{"date": "2026-11-26", "symbol": "META", "expiry": "2026-12-31", "strike": 610.0, "atm_iv": 0.4767813552856446, "spread_pct": 7.4179743223965815, "oi": 34, "volume": 15.0, "spot": 609.89}
+{"date": "2026-11-26", "symbol": "GOOGL", "expiry": "2026-12-31", "strike": 275.0, "atm_iv": 0.4190731921386719, "spread_pct": 7.722007722007722, "oi": 140, "volume": 167.0, "spot": 273.1}
+{"date": "2026-11-26", "symbol": "TSLA", "expiry": "2026-12-31", "strike": 380.0, "atm_iv": 0.5646405841064455, "spread_pct": 6.499535747446611, "oi": 178, "volume": 237.0, "spot": 380.14}
+{"date": "2026-11-26", "symbol": "SPY", "expiry": "2026-12-31", "strike": 717.0, "atm_iv": 0.2312698944091797, "spread_pct": 0.6324495256628682, "oi": 173, "volume": 783.0, "spot": 716.7}
+{"date": "2026-11-26", "symbol": "QQQ", "expiry": "2026-12-31", "strike": 635.0, "atm_iv": 0.3371648315429688, "spread_pct": 1.5349194167306297, "oi": 2280, "volume": 672.0, "spot": 633.93}
+{"date": "2026-11-26", "symbol": "LOW", "expiry": "2026-12-31", "strike": 235.0, "atm_iv": 0.3417424224853516, "spread_pct": 11.167512690355325, "oi": 2, "volume": null, "spot": 235.65}
+{"date": "2026-11-26", "symbol": "PANW", "expiry": "2026-12-31", "strike": 355.0, "atm_iv": 0.6160011544799805, "spread_pct": 15.90705987488829, "oi": 57, "volume": 7.0, "spot": 356.14}
+{"date": "2026-11-26", "symbol": "TGT", "expiry": "2026-12-31", "strike": 170.0, "atm_iv": 0.3682314154052735, "spread_pct": 10.46511627906977, "oi": 63, "volume": 3.0, "spot": 172.22}
