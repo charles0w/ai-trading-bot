@@ -1295,3 +1295,13 @@
 {"date": "2026-11-26", "symbol": "LOW", "expiry": "2026-12-31", "strike": 235.0, "atm_iv": 0.3417424224853516, "spread_pct": 11.167512690355325, "oi": 2, "volume": null, "spot": 235.65}
 {"date": "2026-11-26", "symbol": "PANW", "expiry": "2026-12-31", "strike": 355.0, "atm_iv": 0.6160011544799805, "spread_pct": 15.90705987488829, "oi": 57, "volume": 7.0, "spot": 356.14}
 {"date": "2026-11-26", "symbol": "TGT", "expiry": "2026-12-31", "strike": 170.0, "atm_iv": 0.3682314154052735, "spread_pct": 10.46511627906977, "oi": 63, "volume": 3.0, "spot": 172.22}
+{"date": "2026-11-27", "symbol": "AAPL", "expiry": "2026-12-31", "strike": 360.0, "atm_iv": 0.24030300720214842, "spread_pct": 12.266666666666652, "oi": 0, "volume": 149.0, "spot": 358.54}
+{"date": "2026-11-27", "symbol": "MSFT", "expiry": "2026-12-31", "strike": 495.0, "atm_iv": 0.3591983026123047, "spread_pct": 14.395886889460154, "oi": 18, "volume": 97.0, "spot": 492.85}
+{"date": "2026-11-27", "symbol": "NVDA", "expiry": "2026-12-31", "strike": 150.0, "atm_iv": 0.6409948010253907, "spread_pct": 2.0618556701030926, "oi": 3883, "volume": 2605.0, "spot": 150.49}
+{"date": "2026-11-27", "symbol": "AMZN", "expiry": "2026-12-31", "strike": 255.0, "atm_iv": 0.3924621301269531, "spread_pct": 6.956521739130441, "oi": 448, "volume": 227.0, "spot": 254.12}
+{"date": "2026-11-27", "symbol": "META", "expiry": "2026-12-31", "strike": 630.0, "atm_iv": 0.4422510609436035, "spread_pct": 4.996214988644961, "oi": 0, "volume": 160.0, "spot": 628.96}
+{"date": "2026-11-27", "symbol": "GOOGL", "expiry": "2026-12-31", "strike": 275.0, "atm_iv": 0.3996642065429688, "spread_pct": 10.894941634241247, "oi": 0, "volume": 261.0, "spot": 274.96}
+{"date": "2026-11-27", "symbol": "TSLA", "expiry": "2026-12-31", "strike": 400.0, "atm_iv": 0.4982960327148438, "spread_pct": 4.361370716510906, "oi": 0, "volume": 736.0, "spot": 400.0}
+{"date": "2026-11-27", "symbol": "SPY", "expiry": "2026-12-31", "strike": 728.0, "atm_iv": 0.1970905487060547, "spread_pct": 0.95478798090425, "oi": 0, "volume": 309.0, "spot": 728.32}
+{"date": "2026-11-27", "symbol": "QQQ", "expiry": "2026-12-31", "strike": 651.0, "atm_iv": 0.292701164855957, "spread_pct": 1.455479452054794, "oi": 0, "volume": 10.0, "spot": 650.99}
+{"date": "2026-11-27", "symbol": "WMT", "expiry": "2026-12-31", "strike": 133.0, "atm_iv": 0.24243921630859372, "spread_pct": 7.692307692307689, "oi": 0, "volume": 190.0, "spot": 133.13}
